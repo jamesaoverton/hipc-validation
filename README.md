@@ -9,7 +9,7 @@ This Python script is a simple demonstration of how a column of taxon names can 
 
 ## Usage
 
-Download and unzip NCBI Taxonomy data from <ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip>.
+Download and unzip NCBI Taxonomy data from <ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip>. Then run the script in a terminal:
 
     ./validate.py nodes.dmp names.dmp sample.xlsx
 
