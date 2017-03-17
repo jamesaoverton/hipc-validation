@@ -13,4 +13,4 @@ Download and unzip NCBI Taxonomy data from <ftp://ftp.ncbi.nih.gov/pub/taxonomy/
 
     ./validate.py nodes.dmp names.dmp sample.xlsx
 
-The script will load the NCBI Taxonomy data, then look in the spreadsheet for a column with the title 'Taxon Virus Strain'. It will check each value in that column and print a report to the terminal, suggesting the right scientific name, and verifying that the taxon is a virus.
+The script will load the NCBI Taxonomy data, then look in the spreadsheet for a column with the title 'Virus Strain'. It will check each value in that column and print a report to the terminal, suggesting the right scientific name, and verifying that the taxon is a virus.

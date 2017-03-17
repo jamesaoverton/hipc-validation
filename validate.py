@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # This script reads NCBI Taxonomy names.dmp and an Excel (xlsx) file,
-# looks a column named 'Taxon Virus Strain',
+# looks a column named 'Virus Strain',
 # then checks that every value in that column is a valid NCBI Taxonomy name.
 # A report is printed, classifying each distinct value
 # as with valid or invalid, with an optional suggestion.
@@ -108,5 +108,5 @@ for row in ws:
     match_taxon(name)
   else:
     for cell in row:
-      if cell.value == 'Taxon Virus Strain':
+      if cell.value == 'Virus Strain':
         column = cell.col_idx - 1
