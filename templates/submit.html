@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HIPC Validation Demo</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <style>
+body {
+  padding: 1em;
+}
+form {
+  padding-bottom: 1em;
+}
+    </style>
+  </head>
+  <body>
+    <h1>HIPC Validation Demo</h1>
+    <p>Submit an Excel (<code>.xslx</code>) file for validation:</p>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="form-group">
+        <input name="input" type="file"/>
+      </div>
+      <input type="submit" class="btn btn-primary" value="Submit"/>
+    </form>
+    <p>This tool will look in the spreadsheet for a column with the title <strong>'Virus Strain'</strong>. It will check each value in that column and write an Excel file that highlights and offers suggestions for those values:</p>
+    <ol>
+      <li>green: exact match to the <a href="https://www.ncbi.nlm.nih.gov/taxonomy">NCBI Taxonomy</a> scientific name for a virus</li>
+      <li>blue: automatic replacement of an unambiguous match with the exact scientific name for a virus</li>
+      <li>orange: suggestion for manual replacement</li>
+      <li>red: not recognized as a name for a virus</li>
+    </ol>
+    <p>See the source code: <a href="https://github.com/jamesaoverton/hipc-validation">https://github.com/jamesaoverton/hipc-validation</a><p>
+  </body>
+</html>

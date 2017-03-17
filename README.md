@@ -1,6 +1,6 @@
 # HIPC Validation
 
-This Python script is a simple demonstration of how a column of taxon names can be validated against the NCBI Taxonomy to ensure an exact scientific name is used, and that they fall under the correct branch of the taxonomy.
+This Python script is a simple demonstration of how a column of taxon names can be validated against the [NCBI Taxonomy](https://www.ncbi.nlm.nih.gov/taxonomy) to ensure that (1) an exact scientific name is used, and (2) that they fall under the correct branch of the taxonomy.
 
 ## Requirements
 
@@ -19,3 +19,7 @@ The script will load the NCBI Taxonomy data, then look in the spreadsheet for a 
 2. blue: automatic replacement of an unambiguous match with the exact scientific name for a virus
 3. orange: suggestion for manual replacement
 4. red: not recognized as a name for a virus
+
+## Web Service
+
+The `submit.py` script will run a simple web service allowing users to submit their Excel file and get a validation result immediately. It uses the Python [Flask](http://flask.pocoo.org) module.
