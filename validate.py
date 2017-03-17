@@ -3,8 +3,8 @@
 # This script reads NCBI Taxonomy names.dmp and an Excel (xlsx) file,
 # looks a column named 'Virus Strain',
 # then checks that every value in that column is a valid NCBI Taxonomy name.
-# A report is printed, classifying each distinct value
-# as with valid or invalid, with an optional suggestion.
+# It writes a copy of the Excel file
+# with highlighting and comments on match results for each cell.
 #
 # Download NCBI Taxonomy data from:
 # <ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip>
