@@ -146,6 +146,7 @@ def validate_taxon(cell):
     else:
       cell.comment = Comment('Suggestion: ' + scientific_name, author)
       cell.fill = orangeFill
+    return scientific_name
   elif taxid:
     cell.comment = Comment('Not the name of virus', author)
     cell.fill = redFill
@@ -159,13 +160,28 @@ def process_workbook(in_path, out_path):
   wb = load_workbook(in_path)
   ws = wb.active
   column = None
+  results = set()
   for row in ws:
     if column:
-      validate_taxon(row[column])
+      result = validate_taxon(row[column])
+      if result:
+        results.add(result)
     else:
       for cell in row:
         if cell.value == 'Virus Strain':
           column = cell.col_idx - 1
+
+  # Add suggested values to a lookup column, and replace 'lookupvirus_strain' named range
+  ws = wb['lookup']
+  values = ['Foo', 'BAR', 'Baz']
+  r = 2
+  for value in sorted(results):
+    ws.cell(row=r, column=2).value = value
+    r += 1
+  rng = wb.get_named_range('lookupvirus_strain')
+  wb.remove_named_range(rng)
+  wb.create_named_range('lookupvirus_strain', wb['lookup'], '$B$1:$B$' + str(r))
+
   wb.save(out_path)
 
 if __name__ == "__main__":
