@@ -15,42 +15,57 @@
 
 import argparse, string, re
 from openpyxl import load_workbook
+from openpyxl.styles import Style, PatternFill, Color
+from openpyxl.comments import Comment
 
-# Handle command-line arguments
-parser = argparse.ArgumentParser(
-    description='Validate taxon names in a spreadsheet. Download NCBI Taxonomy from ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip')
-parser.add_argument('nodes',
-    type=argparse.FileType('r'),
-    help='The NCBI nodes.dmp file')
-parser.add_argument('names',
-    type=argparse.FileType('r'),
-    help='The NCBI names.dmp file')
-parser.add_argument('sheet',
-    type=str,
-    help='The xlsx file to check')
-args = parser.parse_args()
+# Configuration
+author = 'HIPC Validation Service'
+greenFill = PatternFill(
+    start_color='D8FFD8',
+    end_color='D8FFD8',
+    fill_type='solid')
+blueFill = PatternFill(
+    start_color='CCD8FF',
+    end_color='CCD8FF',
+    fill_type='solid')
+orangeFill = PatternFill(
+    start_color='FFF1D8',
+    end_color='FFF1D8',
+    fill_type='solid')
+redFill = PatternFill(
+    start_color='FFD8D8',
+    end_color='FFD8D8',
+    fill_type='solid')
 
 # Load NCBI Taxonomy data into various dictionaries
 parents = {}
-id_to_scientific_name = {}
-exact_scientific_names = {}
-exact_synonyms = {}
+taxid_names = {}
+scientific_names = {}
+synonyms = {}
 lowercase_names = {}
 
-# Load parentage
-for line in args.nodes:
-  (taxid, parent, other) = re.split('\s*\|\s*', line.strip('|\n\t '), 2)
-  parents[taxid] = parent
+def load_nodes(path):
+  """Given a path to the NCBI nodes.dmp file,
+  fill the `parents` dictionary."""
+  global parents
+  with open(path, 'r') as r:
+    for line in r:
+      (taxid, parent, other) = re.split('\s*\|\s*', line.strip('|\n\t '), 2)
+      parents[taxid] = parent
 
-# Load scientific names and synonyms
-for line in args.names:
-  (taxid, name, unique, kind) = re.split('\s*\|\s*', line.strip('|\n\t '), 3)
-  if kind == 'scientific name':
-    id_to_scientific_name[taxid] = name
-    exact_scientific_names[name] = taxid
-  else:
-    exact_synonyms[name] = taxid
-  lowercase_names[name.lower()] = taxid
+def load_names(path):
+  """Given a path to the NCBI names.dmp file,
+  fill the various names dictionaries."""
+  global taxid_names, scientific_names, synonyms, lowercase_names
+  with open(path, 'r') as r:
+    for line in r:
+      (taxid, name, unique, kind) = re.split('\s*\|\s*', line.strip('|\n\t '), 3)
+      if kind == 'scientific name':
+        taxid_names[taxid] = name
+        scientific_names[name] = taxid
+      else:
+        synonyms[name] = taxid
+      lowercase_names[name.lower()] = taxid
 
 def is_virus(taxid):
   """Given a taxonomy ID, return true if it is a virus, false otherwise."""
@@ -63,50 +78,122 @@ def is_virus(taxid):
   return is_virus(parents[taxid])
 
 def match_taxon(name):
-  """Given a name, try to match it and print a brief report."""
-  iname = name.strip().lower()
+  """Given a name, try to match a taxon,
+  and return a tuple of: name, taxid, scientific_name, automatic_replacement"""
+  taxid = None
+  scientific_name = None
+  automatic_replacement = False
+  iname = name.strip().lower().replace('  ',' ')
 
-  # Is this the exact scientific name of a virus?
-  if name in exact_scientific_names:
-    taxid = exact_scientific_names[name]
-    if is_virus(taxid):
-      print('MATCHED VIRUS "%s"' % name)
-    else:
-      print('NOT A VIRUS "%s"' % name)
+  # 1. Scientific Name of a Virus
+  if name in scientific_names:
+    taxid = scientific_names[name]
+    scientific_name = name
 
-  # Is this the exact synonym of some taxon?
-  elif name in exact_synonyms:
-    taxid = exact_synonyms[name]
-    scientific_name = id_to_scientific_name[taxid]
-    print('SUGGEST "%s" INSTEAD OF "%s"' % (scientific_name, name))
-
-  # Is this a variation on a synony? Strip whitespace and ignore case.
+  # 2. Close Match for a Virus
   elif iname in lowercase_names:
     taxid = lowercase_names[iname]
-    scientific_name = id_to_scientific_name[taxid]
-    print('SUGGEST "%s" INSTEAD OF "%s"' % (scientific_name, name))
+    scientific_name = taxid_names[taxid]
+    automatic_replacement = True
 
-  # Is this a substring of exactly on scientific name?
+  # 3. Suggest Manual Replacement
+  # Is this the exact synonym of some taxon?
+  elif name in synonyms:
+    taxid = synonyms[name]
+    scientific_name = id_to_scientific_name[taxid]
+
+  # Is this a substring of exactly one scientific name?
   else:
     matches = []
-    for scientific_name in exact_scientific_names.keys():
+    for scientific_name in scientific_names.keys():
       if name in scientific_name:
         matches.append(scientific_name)
+      if len(matches) > 1:
+        break
     if len(matches) == 1:
-      print('SUGGEST "%s" INSTEAD OF "%s"' % (matches[0], name))
-    else:
-      print('NO MATCH FOR "%s"' % name)
+      scientific_name = matches[0]
+      taxid = scientific_names[scientific_name]
 
-# Load an Excel file, search for the 'Taxon Virus Strain' column,
-# then validate each virus name.
-wb = load_workbook(args.sheet)
-ws = wb.active
-column = None
-for row in ws:
-  if column:
-    name = row[column].value
-    match_taxon(name)
+  return (name, taxid, scientific_name, automatic_replacement)
+
+def test_match_taxon():
+  scientific_names['FOO'] = '1234'
+  taxid_names['1234'] = 'FOO'
+  synonyms['bAR'] = '1234'
+  lowercase_names['foo'] = '1234'
+  lowercase_names['bar'] = '1234'
+
+  (name, taxid, scientific_name, automatic_replacement) = match_taxon('FOO')
+  assert name == 'FOO'
+  assert taxid == '1234'
+  assert scientific_name == 'FOO'
+  assert automatic_replacement == False
+
+  (name, taxid, scientific_name, automatic_replacement) = match_taxon('  FOO  ')
+  assert name == '  FOO  '
+  assert taxid == '1234'
+  assert scientific_name == 'FOO'
+  assert automatic_replacement == True
+
+  (name, taxid, scientific_name, automatic_replacement) = match_taxon('FO')
+  assert name == 'FO'
+  assert taxid == '1234'
+  assert scientific_name == 'FOO'
+  assert automatic_replacement == False
+
+def validate_taxon(cell):
+  """Given a cell with a taxon value,
+  check that it is valid, make a suggestion, or mark it as an error."""
+  (name, taxid, scientific_name, automatic_replacement) = match_taxon(cell.value or '')
+
+  # Update the cell
+  if is_virus(taxid):
+    if name == scientific_name:
+      cell.fill = greenFill
+    elif automatic_replacement:
+      cell.value = scientific_name
+      cell.fill = blueFill
+      cell.comment = Comment('Automatically replaced "%s" with "%s".' % (name, scientific_name), author)
+    else:
+      cell.fill = orangeFill
+      cell.comment = Comment('Suggestion: %s' % scientific_name, author)
   else:
-    for cell in row:
-      if cell.value == 'Virus Strain':
-        column = cell.col_idx - 1
+    cell.fill = redFill
+    cell.comment = Comment('Not a virus', author)
+
+def process_workbook(in_path, out_path):
+  """Load an Excel file, search for the 'Taxon Virus Strain' column,
+  then validate each virus name."""
+  wb = load_workbook(in_path)
+  ws = wb.active
+  column = None
+  for row in ws:
+    if column:
+      validate_taxon(row[column])
+    else:
+      for cell in row:
+        if cell.value == 'Virus Strain':
+          column = cell.col_idx - 1
+  wb.save(out_path)
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(
+      description='Validate taxon names in a spreadsheet. Download NCBI Taxonomy from ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip')
+  parser.add_argument('nodes',
+      type=str,
+      help='The NCBI nodes.dmp file')
+  parser.add_argument('names',
+      type=str,
+      help='The NCBI names.dmp file')
+  parser.add_argument('input',
+      type=str,
+      help='The XLSX file to read')
+  parser.add_argument('output',
+      type=str,
+      help='The XLSX file to write')
+  args = parser.parse_args()
+
+  load_nodes(args.nodes)
+  load_names(args.names)
+  process_workbook(args.input, args.output)
+

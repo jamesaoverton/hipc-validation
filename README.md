@@ -11,6 +11,11 @@ This Python script is a simple demonstration of how a column of taxon names can 
 
 Download and unzip NCBI Taxonomy data from <ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip>. Then run the script in a terminal:
 
-    ./validate.py nodes.dmp names.dmp sample.xlsx
+    ./validate.py nodes.dmp names.dmp sample.xlsx result.xlsx
 
-The script will load the NCBI Taxonomy data, then look in the spreadsheet for a column with the title 'Virus Strain'. It will check each value in that column and print a report to the terminal, suggesting the right scientific name, and verifying that the taxon is a virus.
+The script will load the NCBI Taxonomy data, then look in the spreadsheet for a column with the title 'Virus Strain'. It will check each value in that column and write an Excel file that highlights and offers suggestions for those values:
+
+1. green: exact match to the NCBI Taxonomy scientific name for a virus
+2. blue: automatic replacement of an unambiguous match with the exact scientific name for a virus
+3. orange: suggestion for manual replacement
+4. red: not recognized as a name for a virus
