@@ -20,22 +20,11 @@ from openpyxl.comments import Comment
 
 # Configuration
 author = 'HIPC Validation Service'
-greenFill = PatternFill(
-    start_color='D8FFD8',
-    end_color='D8FFD8',
-    fill_type='solid')
-blueFill = PatternFill(
-    start_color='CCD8FF',
-    end_color='CCD8FF',
-    fill_type='solid')
-orangeFill = PatternFill(
-    start_color='FFF1D8',
-    end_color='FFF1D8',
-    fill_type='solid')
-redFill = PatternFill(
-    start_color='FFD8D8',
-    end_color='FFD8D8',
-    fill_type='solid')
+greenFill = PatternFill(start_color='D8FFD8', end_color='D8FFD8', fill_type='solid')
+blueFill = PatternFill(start_color='CCD8FF', end_color='CCD8FF', fill_type='solid')
+orangeFill = PatternFill(start_color='FFF1D8', end_color='FFF1D8', fill_type='solid')
+redFill = PatternFill(start_color='FFD8D8', end_color='FFD8D8', fill_type='solid')
+darkRedFill = PatternFill(start_color='FFBBBB', end_color='FFBBBB', fill_type='solid')
 
 # Load NCBI Taxonomy data into various dictionaries
 parents = {}
@@ -151,15 +140,18 @@ def validate_taxon(cell):
     if name == scientific_name:
       cell.fill = greenFill
     elif automatic_replacement:
+      cell.comment = Comment('Automatically replaced "%s" with "%s".' % (name, scientific_name), author)
       cell.value = scientific_name
       cell.fill = blueFill
-      cell.comment = Comment('Automatically replaced "%s" with "%s".' % (name, scientific_name), author)
     else:
+      cell.comment = Comment('Suggestion: ' + scientific_name, author)
       cell.fill = orangeFill
-      cell.comment = Comment('Suggestion: %s' % scientific_name, author)
-  else:
+  elif taxid:
+    cell.comment = Comment('Not the name of virus', author)
     cell.fill = redFill
-    cell.comment = Comment('Not a virus', author)
+  else:
+    cell.comment = Comment('Not found in NCBI Taxonomy', author)
+    cell.fill = darkRedFill
 
 def process_workbook(in_path, out_path):
   """Load an Excel file, search for the 'Taxon Virus Strain' column,
