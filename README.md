@@ -19,6 +19,7 @@ The script will load the NCBI Taxonomy data, then look in the spreadsheet for a 
 2. blue: automatic replacement of an unambiguous match with the exact scientific name for a virus
 3. orange: suggestion for manual replacement
 4. red: not recognized as a name for a virus
+5. dark red: not recognized as a name in the NCBI Taxonomy
 
 ## Web Service
 
