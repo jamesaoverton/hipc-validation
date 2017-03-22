@@ -179,8 +179,9 @@ def process_workbook(in_path, out_path):
     ws.cell(row=r, column=2).value = value
     r += 1
   rng = wb.get_named_range('lookupvirus_strain')
-  wb.remove_named_range(rng)
-  wb.create_named_range('lookupvirus_strain', wb['lookup'], '$B$1:$B$' + str(r))
+  if rng:
+    wb.remove_named_range(rng)
+    wb.create_named_range('lookupvirus_strain', wb['lookup'], '$B$1:$B$' + str(r))
 
   wb.save(out_path)
 
