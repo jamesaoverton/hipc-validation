@@ -142,6 +142,7 @@ def main():
                       help='The NCBI names.dmp file')
   parser.add_argument('--clobber', dest='clobber', action='store_true',
                       help='If CSV files exist, overwrite them without prompting')
+
   # Command-line arguments used to specify the study ids to validate.
   # ---
   # For each type of study that will be validated (e.g. 'hai', 'neutAbTiter'), a separate
@@ -202,7 +203,7 @@ def main():
       query = ("https://api.immport.org/data/query/result/{}?studyAccession={}"
                .format(endpoint, ','.join(args[endpoint])))
       print("Sending request: " + query)
-      resp = requests.get(query, headers={"Authorization":"bearer " + token})
+      resp = requests.get(query, headers={"Authorization": "bearer " + token})
       if resp.status_code != requests.codes.ok:
         resp.raise_for_status()
 
@@ -220,7 +221,8 @@ def main():
         print("Received {} records for {} ID: {}".format(len(records), endpoint, sid))
         for record in records:
           write_record(
-            record, headers, outfile, parents, taxid_names, scientific_names, synonyms, lowercase_names)
+            record, headers, outfile, parents, taxid_names, scientific_names,
+            synonyms, lowercase_names)
 
   end = time.time()
   print("Processing completed. Total execution time: {0:.2f} seconds.".format(end - start))
@@ -244,7 +246,6 @@ def test_determine_preferred():
   synonyms['bAR'] = '1'
   lowercase_names['foo'] = '1'
   lowercase_names['bar'] = '1'
-
 
   (name, comment) = determine_preferred(
     'FOO', parents, taxid_names, scientific_names, synonyms, lowercase_names)
