@@ -122,7 +122,7 @@ def validate_taxon(cell):
       cell.fill = orangeFill
     return scientific_name
   elif taxid:
-    cell.comment = Comment('Not the name of virus', author)
+    cell.comment = Comment('Not the name of a virus', author)
     cell.fill = redFill
   else:
     cell.comment = Comment('Not found in NCBI Taxonomy', author)
