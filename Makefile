@@ -1,11 +1,16 @@
-.PHONY: validate clean cleanall test
+.PHONY: validate batch_validate clean cleanall test
 
 validate: validate.py nodes.dmp names.dmp sample.xlsx
 	$^ result.xlsx
 
-hai.csv neutAbTiter.csv: validate_studies.py nodes.dmp names.dmp
+batch_validate: hai.csv neutAbTiter.csv
+
+hai.csv: batch_validate.py nodes.dmp names.dmp
 	$< --nodes nodes.dmp --names names.dmp \
-	--hai SDY113 SDY144 SDY180 SDY202 SDY212 SDY312 SDY387 SDY404 SDY514 SDY515 SDY519 SDY67 \
+	--hai SDY113 SDY144 SDY180 SDY202 SDY212 SDY312 SDY387 SDY404 SDY514 SDY515 SDY519 SDY67
+
+neutAbTiter.csv: batch_validate.py nodes.dmp names.dmp
+	$< --nodes nodes.dmp --names names.dmp \
 	--neutAbTiter SDY144 SDY180 SDY387 SDY522 SDY67
 
 %.dmp: taxdmp.zip
