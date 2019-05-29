@@ -233,7 +233,7 @@ def main():
         records = [r for r in resp.json() if r['studyAccession'] == sid]
         print("Received {} records for {} ID: {}".format(len(records), endpoint, sid))
         write_records(records, headers, outfile, parents, taxid_names, scientific_names,
-            synonyms, lowercase_names)
+                      synonyms, lowercase_names)
 
   end = time.time()
   print("Processing completed. Total execution time: {0:.2f} seconds.".format(end - start))
