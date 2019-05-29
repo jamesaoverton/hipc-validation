@@ -10,7 +10,7 @@ hai.csv: batch_validate.py nodes.dmp names.dmp
 	--hai SDY113 SDY144 SDY180 SDY202 SDY212 SDY312 SDY387 SDY404 SDY514 SDY515 SDY519 SDY67
 
 neutAbTiter.csv: batch_validate.py nodes.dmp names.dmp
-	$< --nodes nodes.dmp --names names.dmp \
+	$< --clobber --nodes nodes.dmp --names names.dmp \
 	--neutAbTiter SDY144 SDY180 SDY387 SDY522 SDY67
 
 %.dmp: taxdmp.zip

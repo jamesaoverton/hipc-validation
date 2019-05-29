@@ -42,35 +42,34 @@ def extract_names(names_file):
   return taxid_names, scientific_names, synonyms, lowercase_names
 
 
-def determine_preferred(reported, parents, taxid_names, scientific_names, synonyms,
-                        lowercase_names):
+def validate(name, parents, taxid_names, scientific_names, synonyms, lowercase_names):
   """
-  Determine the preferred name of the given reported virus.
+  Determine the preferred name of the given virus name
   """
   taxid = None
   scientific_name = None
   automatic_replacement = False
-  ireported = reported.strip().lower().replace('  ', ' ')
+  iname = name.strip().lower().replace('  ', ' ') if name else ''
 
-  if reported:
-    # 1. 'reported' matches the scientific name of a virus:
-    if reported in scientific_names:
-      taxid = scientific_names[reported]
-      scientific_name = reported
-    # 2. 'reported' is a close case-insensitive match for a virus:
-    elif ireported in lowercase_names:
-      taxid = lowercase_names[ireported]
+  if name:
+    # 1. 'name' matches the scientific name of a virus:
+    if name in scientific_names:
+      taxid = scientific_names[name]
+      scientific_name = name
+    # 2. 'name' is a close case-insensitive match for a virus:
+    elif iname in lowercase_names:
+      taxid = lowercase_names[iname]
       scientific_name = taxid_names[taxid]
       automatic_replacement = True
-    # 3. 'reported' is the exact synonym of some taxon
-    elif reported in synonyms:
-      taxid = synonyms[reported]
+    # 3. 'name' is the exact synonym of some taxon
+    elif name in synonyms:
+      taxid = synonyms[name]
       scientific_name = id_to_scientific_name[taxid]
-    # 4. 'reported' is a substring of exactly one scientific name:
+    # 4. 'name' is a substring of exactly one scientific name:
     else:
       matches = []
       for scientific_name in scientific_names.keys():
-        if reported in scientific_name:
+        if name in scientific_name:
           matches.append(scientific_name)
           if len(matches) > 1:
             break
@@ -87,37 +86,50 @@ def determine_preferred(reported, parents, taxid_names, scientific_names, synony
   preferred = None
   comment = None
   if is_virus(taxid):
-    if reported == scientific_name:
-      preferred = reported
+    if name == scientific_name:
+      preferred = name
     elif automatic_replacement:
       preferred = scientific_name
-      comment = 'Automatically replaced "%s" with "%s".' % (reported, scientific_name)
+      comment = 'Automatically replaced "%s" with "%s".' % (name, scientific_name)
     else:
-      preferred = reported
+      preferred = name
       comment = 'Suggestion: ' + scientific_name
   elif taxid:
-    preferred = reported
+    preferred = name
     comment = 'Not the name of a virus'
   else:
-    preferred = reported
+    preferred = name
     comment = 'Not found in NCBI Taxonomy'
 
-  return preferred, comment
+  return comment
 
 
-def write_record(record, headers, outfile, parents, taxid_names,
-                 scientific_names, synonyms, lowercase_names):
+def write_records(records, headers, outfile, parents, taxid_names,
+                  scientific_names, synonyms, lowercase_names):
   """
-  Writes the given record, whose keys are given in `headers` to the given outfile, and in addition
-  determines the preferred virus name for the given record and writes that too.
+  Writes the given records, for which their keys are given in `headers`, to the given outfile.
+  In addition, determine the preferred virus name for each record and write that too.
   """
-  for header in headers:
-    print('"{}",'.format(record[header]), end='', file=outfile)
+  processed = set()
+  for record in records:
+    # Ignore this record if the combination of its 'virusStrainReported' and
+    # 'virusStrainPreferred' fields has already been processed:
+    if (record['virusStrainReported'], record['virusStrainPreferred']) not in processed:
+      for header in headers:
+        print('"{}",'.format(record[header]), end='', file=outfile)
 
-  preferred, comment = determine_preferred(record['virusStrainReported'], parents, taxid_names,
-                                           scientific_names, synonyms, lowercase_names)
-  print('"{}","{}",'.format(preferred, comment), end='', file=outfile)
-  print("Y", file=outfile) if record['virusStrainPreferred'] == preferred else print("N", file=outfile)
+      comment_reported = validate(record['virusStrainReported'], parents, taxid_names,
+                                  scientific_names, synonyms, lowercase_names)
+      comment_preferred = validate(record['virusStrainPreferred'], parents, taxid_names,
+                                   scientific_names, synonyms, lowercase_names)
+      print('"{}","{}",'.format(comment_reported, comment_preferred), end='', file=outfile)
+
+      if comment_reported == comment_preferred:
+        print("Y", file=outfile)
+      else:
+        print("N", file=outfile)
+
+      processed.add((record['virusStrainReported'], record['virusStrainPreferred']))
 
 
 def main():
@@ -182,6 +194,7 @@ def main():
   start = time.time()
 
   # Get an authentication token from ImmPort:
+  print("Retrieving authentication token from Immport ...")
   resp = requests.post('https://auth.immport.org/auth/token',
                        data={'username': username, 'password': password})
   if resp.status_code != requests.codes.ok:
@@ -211,17 +224,15 @@ def main():
       headers = sorted([key for key in resp.json()[0]])
       for header in headers:
         print("{},".format(header), end='', file=outfile)
-      print("Preferred (determined),", end='', file=outfile)
-      print("Comment,", end='', file=outfile)
-      print("Preferred (determined) matches virusStrainPreferred", file=outfile)
+      print("Comment on virusStrainReported,", end='', file=outfile)
+      print("Comment on virusStrainPreferred,", end='', file=outfile)
+      print("Comments match", file=outfile)
 
       # Now write the actual data:
       for sid in args[endpoint]:
         records = [r for r in resp.json() if r['studyAccession'] == sid]
         print("Received {} records for {} ID: {}".format(len(records), endpoint, sid))
-        for record in records:
-          write_record(
-            record, headers, outfile, parents, taxid_names, scientific_names,
+        write_records(records, headers, outfile, parents, taxid_names, scientific_names,
             synonyms, lowercase_names)
 
   end = time.time()
