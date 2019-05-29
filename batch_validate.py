@@ -110,26 +110,27 @@ def write_records(records, headers, outfile, parents, taxid_names,
   Writes the given records, for which their keys are given in `headers`, to the given outfile.
   In addition, determine the preferred virus name for each record and write that too.
   """
-  processed = set()
+  validated = {}
   for record in records:
-    # Ignore this record if the combination of its 'virusStrainReported' and
-    # 'virusStrainPreferred' fields has already been processed:
-    if (record['virusStrainReported'], record['virusStrainPreferred']) not in processed:
-      for header in headers:
-        print('"{}",'.format(record[header]), end='', file=outfile)
+    for header in headers:
+      print('"{}",'.format(record[header]), end='', file=outfile)
 
-      comment_reported = validate(record['virusStrainReported'], parents, taxid_names,
-                                  scientific_names, synonyms, lowercase_names)
-      comment_preferred = validate(record['virusStrainPreferred'], parents, taxid_names,
-                                   scientific_names, synonyms, lowercase_names)
-      print('"{}","{}",'.format(comment_reported, comment_preferred), end='', file=outfile)
+    # Validate a given ('virusStrainReported', 'virusStrainPreferred') combination at most once:
+    validation_key = (record['virusStrainReported'], record['virusStrainPreferred'])
+    if validation_key not in validated:
+      validated[validation_key] = {
+        'comment_reported': validate(record['virusStrainReported'], parents, taxid_names,
+                                     scientific_names, synonyms, lowercase_names),
+        'comment_preferred': validate(record['virusStrainPreferred'], parents, taxid_names,
+                                      scientific_names, synonyms, lowercase_names)}
 
-      if comment_reported == comment_preferred:
-        print("Y", file=outfile)
-      else:
-        print("N", file=outfile)
-
-      processed.add((record['virusStrainReported'], record['virusStrainPreferred']))
+    comment_reported = validated[validation_key]['comment_reported']
+    comment_preferred = validated[validation_key]['comment_preferred']
+    print('"{}","{}",'.format(comment_reported, comment_preferred), end='', file=outfile)
+    if comment_reported == comment_preferred:
+      print("Y", file=outfile)
+    else:
+      print("N", file=outfile)
 
 
 def main():
