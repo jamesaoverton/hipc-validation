@@ -13,11 +13,10 @@
 # - [openpyxl](http://openpyxl.readthedocs.io)
 
 import argparse
-import string
 import re
 
 from openpyxl import load_workbook
-from openpyxl.styles import Style, PatternFill, Color
+from openpyxl.styles import PatternFill
 from openpyxl.comments import Comment
 
 # Configuration
@@ -87,7 +86,7 @@ def match_taxon(name):
     # 3. 'name' is the exact synonym of some taxon
     elif name in synonyms:
       taxid = synonyms[name]
-      scientific_name = id_to_scientific_name[taxid]
+      scientific_name = taxid_names[taxid]
     # 4. 'name' is a substring of exactly one scientific name:
     else:
       matches = []
