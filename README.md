@@ -3,7 +3,7 @@
 This Python script is a simple demonstration of how a column of taxon names can be validated against the [NCBI Taxonomy](https://www.ncbi.nlm.nih.gov/taxonomy) to ensure that (1) an exact scientific name is used, and (2) that they fall under the correct branch of the taxonomy.
 
 
-[![Build Status](https://travis-ci.com/jamesaoverton/cell-name-and-marker-validator.svg?branch=master)](https://travis-ci.com/jamesaoverton/cell-name-and-marker-validator)
+[![Build Status](https://travis-ci.com/jamesaoverton/hipc-validation.svg?branch=master)](https://travis-ci.com/jamesaoverton/hipc-validation)
 
 ## Requirements
 
