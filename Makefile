@@ -26,4 +26,4 @@ cleanall: clean
 	rm -Rf static
 
 test:
-	pytest-3 *.py
+	pytest *.py
