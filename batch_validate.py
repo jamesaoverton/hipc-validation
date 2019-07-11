@@ -1,12 +1,64 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import getpass
-import os.path
+import json
+import os
 import re
 import requests
 import sys
 import time
+
+
+def get_study_ids(studiesinfo, technique):
+  """
+  Given a list of records containing study information, return those which are instances of the
+  given experimental measurement technique.
+  """
+  study_ids = set()
+  for row in studiesinfo:
+    techniques = row['Experiment Measurement Techniques']
+    if re.search(technique, techniques, flags=re.IGNORECASE):
+      study_ids.add(row['Supporting Data'].strip())
+
+  print("Found {} {} studies: {}".format(len(study_ids), technique, study_ids))
+  return study_ids
+
+
+def filter_study_ids(all_ids, requested_ids):
+  """
+  Given the list `all_ids` of available study ids, and the list `requested_ids`, return those in
+  the latter that exist in the former.
+  """
+  print("Validation of {} requested ...".format(requested_ids))
+  bad_ids = [sid for sid in requested_ids if sid not in all_ids]
+  requested_ids = [sid for sid in requested_ids if sid not in bad_ids]
+  if bad_ids:
+    print("{} are not valid studies of this type; ignoring ...".format(bad_ids))
+  print("Validating: {} ...".format(requested_ids))
+  return requested_ids
+
+
+def fetch_immport_data(auth_token, endpoint_name, sid, jsonpath):
+  """
+  Fetches the data for the given `sid` from ImmPort, caching it in the file at the location
+  `jsonpath` for later reuse before returning the data to the caller.
+  """
+  print("Fetching {} JSON data for {} from ImmPort ...".format(endpoint_name, sid))
+  # Send the request:
+  query = ("https://api.immport.org/data/query/result/{}?studyAccession={}"
+           .format(endpoint_name, sid))
+  resp = requests.get(query, headers={"Authorization": "bearer " + auth_token})
+  if resp.status_code != requests.codes.ok:
+    resp.raise_for_status()
+
+  # Save the JSON data from the response, and write it to a file at the location `jsonpath` that
+  # can be reused later if this script is called again.
+  data = resp.json()
+  with open(jsonpath, 'w') as f:
+    json.dump(data, f)
+  return data
 
 
 def extract_nodes(nodes_file):
@@ -15,7 +67,7 @@ def extract_nodes(nodes_file):
   """
   parents = {}
   for line in nodes_file:
-    (taxid, parent, other) = re.split('\s*\|\s*', line.strip('|\n\t '), 2)
+    (taxid, parent, other) = re.split(r'\s*\|\s*', line.strip('|\n\t '), 2)
     parents[taxid] = parent
 
   return parents
@@ -31,7 +83,7 @@ def extract_names(names_file):
   synonyms = {}
   lowercase_names = {}
   for line in names_file:
-    (taxid, name, unique, kind) = re.split('\s*\|\s*', line.strip('|\n\t '), 3)
+    (taxid, name, unique, kind) = re.split(r'\s*\|\s*', line.strip('|\n\t '), 3)
     if kind == 'scientific name':
       taxid_names[taxid] = name
       scientific_names[name] = taxid
@@ -109,7 +161,7 @@ def write_records(records, headers, outfile, parents, taxid_names,
   validated = {}
   for record in records:
     for header in headers:
-      print('"{}",'.format(record[header]), end='', file=outfile)
+      print('"{}"'.format(record[header]), end='\t', file=outfile)
 
     # Validate a given ('virusStrainReported', 'virusStrainPreferred') combination at most once:
     validation_key = (record['virusStrainReported'], record['virusStrainPreferred'])
@@ -122,11 +174,11 @@ def write_records(records, headers, outfile, parents, taxid_names,
 
     comment_reported = validated[validation_key]['comment_reported']
     comment_preferred = validated[validation_key]['comment_preferred']
-    print('"{}","{}",'.format(comment_reported, comment_preferred), end='', file=outfile)
+    print('"{}"\t"{}"'.format(comment_reported, comment_preferred), end='\t', file=outfile)
     if comment_reported == comment_preferred:
-      print("Y", file=outfile)
+      print('"Y"', file=outfile)
     else:
-      print("N", file=outfile)
+      print('"N"', file=outfile)
 
 
 def main():
@@ -142,16 +194,17 @@ def main():
   when the study was submitted) are indcated. In addition to these columns, this script adds three
   extra columns: (a) the result of validating the reported virus name, (b) the result of validating
   the preferred virus name, and (c) a comparison of the results of these two validations.''')
-  parser.add_argument('--username', metavar='USERNAME', type=str,
-                      help='username for ImmPort API. If unspecified the script will prompt for it')
-  parser.add_argument('--password', metavar='PASSWORD', type=str,
-                      help='password for ImmPort API. If unspecified the script will prompt for it')
-  parser.add_argument('--nodes', metavar='NODES', type=argparse.FileType('r'), required=True,
+
+  parser.add_argument('studiesinfo', type=argparse.FileType(mode='r', encoding='ISO-8859-1'),
+                      help='A TSV file containing general information on various studies')
+  parser.add_argument('nodes', type=argparse.FileType('r'),
                       help='The NCBI nodes.dmp file')
-  parser.add_argument('--names', metavar='NAMES', type=argparse.FileType('r'), required=True,
+  parser.add_argument('names', type=argparse.FileType('r'),
                       help='The NCBI names.dmp file')
-  parser.add_argument('--clobber', dest='clobber', action='store_true',
-                      help='If CSV files exist, overwrite them without prompting')
+  parser.add_argument('output_dir', type=str,
+                      help='directory for output TSV files')
+  parser.add_argument('cache_dir', type=str,
+                      help='directory containing cached JSON files')
 
   # Command-line arguments used to specify the study ids to validate.
   # ---
@@ -161,17 +214,18 @@ def main():
   # and the function `get_requested_endpoints()` should be modified accordingly.
   def get_requested_endpoints(args):
     endpoints = []
-    if args.get('hai'):
-      endpoints.append('hai')
-    if args.get('neutAbTiter'):
-      endpoints.append('neutAbTiter')
+    if args.get('hai') is not None:
+      endpoints.append({'name': 'hai', 'description': 'Hemagglutination Inhibition'})
+    if args.get('neutAbTiter') is not None:
+      endpoints.append({'name': 'neutAbTiter', 'description': 'Virus Neutralization'})
     return endpoints
 
   study_type_group = parser.add_argument_group()
-  study_type_group.add_argument('--hai', metavar='ID', type=str, nargs='+',
+  study_type_group.add_argument('--hai', metavar='ID', type=str, nargs='*',
                                 help='ids of Hemagglutination Inhibition studies to validate')
-  study_type_group.add_argument('--neutAbTiter', metavar='ID', type=str, nargs='+',
-                                help='ids of Neutralizing Antibody Titer studies to validate')
+  study_type_group.add_argument('--neutAbTiter', metavar='ID', type=str, nargs='*',
+                                help=('ids of Neutralizing Antibody Titer (Virus Neutralization) '
+                                      'studies to validate'))
 
   args = vars(parser.parse_args())
 
@@ -180,16 +234,24 @@ def main():
     print("At least one study type must be specified")
     sys.exit(1)
 
-  # If the username and/or password have not been specified on the command line, prompt for them:
-  username = args['username']
+  # If the username and/or password haven't been set in environment variables, prompt for them:
+  username = os.environ.get('IMMPORT_USERNAME')
   if not username:
-    username = input("Enter username for API calls to ImmPort: ")
-  password = args['password']
+    username = input("IMMPORT_USERNAME not set. Enter ImmPort username: ")
+  password = os.environ.get('IMMPORT_PASSWORD')
   if not password:
-    password = getpass.getpass('Enter password for API calls to ImmPort: ')
+    password = getpass.getpass('IMMPORT_PASSWORD not set. Enter ImmPort password: ')
 
   # Get the start time of the execution for later logging the total elapsed time:
   start = time.time()
+
+  # Read in the information from the file containing general info on studies.
+  studiesinfo = list(csv.DictReader(args['studiesinfo'], delimiter='\t'))
+
+  # Get the nodes and names data from the given files:
+  print("Extracting NCBI data ...")
+  parents = extract_nodes(args['nodes'])
+  taxid_names, scientific_names, synonyms, lowercase_names = extract_names(args['names'])
 
   # Get an authentication token from ImmPort:
   print("Retrieving authentication token from Immport ...")
@@ -197,39 +259,57 @@ def main():
                        data={'username': username, 'password': password})
   if resp.status_code != requests.codes.ok:
     resp.raise_for_status()
-  token = resp.json()['token']
+  auth_token = resp.json()['token']
 
-  # Now request data for the given study ids:
-  print("Extracting NCBI data ...")
-  parents = extract_nodes(args['nodes'])
-  taxid_names, scientific_names, synonyms, lowercase_names = extract_names(args['names'])
+  # Now request data for the given study ids, for each endpoint:
   for endpoint in endpoints:
-    if os.path.exists(endpoint + '.csv') and args['clobber'] is False:
-      reply = input('{}.csv exists. Do you want really want to overwrite it? (y/n): '
-                    .format(endpoint))
-      reply = reply.lower().strip()
-      if reply == 'n':
-        continue
-    with open(endpoint + '.csv', 'w') as outfile:
-      query = ("https://api.immport.org/data/query/result/{}?studyAccession={}"
-               .format(endpoint, ','.join(args[endpoint])))
-      print("Sending request: " + query)
-      resp = requests.get(query, headers={"Authorization": "bearer " + token})
-      if resp.status_code != requests.codes.ok:
-        resp.raise_for_status()
+    print("Validating {} studies".format(endpoint['name']))
+    outpath = os.path.normpath('{}/{}.tsv'.format(args['output_dir'], endpoint['name']))
+    # Find all of the studies corresponding to the given endpoint to validate:
+    study_ids = get_study_ids(studiesinfo, endpoint['description'])
+    # But validate only those that the user has requested (validate them all if none are specified):
+    if len(args[endpoint['name']]) > 0:
+      study_ids = filter_study_ids(study_ids, args[endpoint['name']])
 
-      # Write the header of the CSV using the data returned:
-      headers = sorted([key for key in resp.json()[0]])
+    data = {}
+    for sid in study_ids:
+      cachedir = '{}/{}/'.format(args['cache_dir'], endpoint['name'])
+      os.makedirs(cachedir, exist_ok=True)
+      jsonpath = os.path.normpath('{}/{}.json'.format(cachedir, sid))
+      # Check to see if there is an existing file for this study id. If so, reuse it, otherwise
+      # send an API call to ImmPort to retrieve the data:
+      try:
+        with open(jsonpath) as f:
+          data[sid] = json.load(f)
+          print("Retrieved JSON data for {} from cached file {}".format(sid, jsonpath))
+      except FileNotFoundError:
+        print("No cached data for {} found ({} does not exist)".format(sid, jsonpath))
+        data[sid] = fetch_immport_data(auth_token, endpoint['name'], sid, jsonpath)
+
+    if not any([data[sid] for sid in data]):
+      print("No data found for endpoint '{}'".format(endpoint['name']))
+      continue
+
+    # Write the header of the output TSV file by using the data returned plus extra fields
+    # determined on its basis. Every sid in the data set should have the same fields, so we can just
+    # use the first one (that has data) to get the header fields from. We can assume that there will
+    # be at least one of these since we checked for this above.
+    first_sid_with_data = [sid for sid in data if data[sid]].pop()
+    headers = sorted([key for key in data[first_sid_with_data][0]])
+    with open(outpath, 'w') as outfile:
       for header in headers:
-        print("{},".format(header), end='', file=outfile)
-      print("Comment on virusStrainReported,", end='', file=outfile)
-      print("Comment on virusStrainPreferred,", end='', file=outfile)
-      print("Comments match", file=outfile)
+        print('"{}"'.format(header), end='\t', file=outfile)
+      print('"Comment on virusStrainReported"', end='\t', file=outfile)
+      print('"Comment on virusStrainPreferred"', end='\t', file=outfile)
+      print('"Comments match"', file=outfile)
 
       # Now write the actual data:
-      for sid in args[endpoint]:
-        records = [r for r in resp.json() if r['studyAccession'] == sid]
-        print("Received {} records for {} ID: {}".format(len(records), endpoint, sid))
+      for sid in study_ids:
+        records = data.get(sid)
+        if not records:
+          print("No data found for " + sid)
+          continue
+        print("Processing {} records for {} ID: {}".format(len(records), endpoint['name'], sid))
         write_records(records, headers, outfile, parents, taxid_names, scientific_names,
                       synonyms, lowercase_names)
 

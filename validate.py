@@ -41,7 +41,7 @@ def load_nodes(path):
   global parents
   with open(path, 'r') as r:
     for line in r:
-      (taxid, parent, other) = re.split('\s*\|\s*', line.strip('|\n\t '), 2)
+      (taxid, parent, other) = re.split(r'\s*\|\s*', line.strip('|\n\t '), 2)
       parents[taxid] = parent
 
 
@@ -51,7 +51,7 @@ def load_names(path):
   global taxid_names, scientific_names, synonyms, lowercase_names
   with open(path, 'r') as r:
     for line in r:
-      (taxid, name, unique, kind) = re.split('\s*\|\s*', line.strip('|\n\t '), 3)
+      (taxid, name, unique, kind) = re.split(r'\s*\|\s*', line.strip('|\n\t '), 3)
       if kind == 'scientific name':
         taxid_names[taxid] = name
         scientific_names[name] = taxid
