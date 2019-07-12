@@ -57,6 +57,18 @@ build/neutAbTiter.tsv: batch_validate.py build/HIPC_Studies.tsv cache/nodes.dmp 
 	$^ $| --neutAbTiter
 
 
+### Delinting and style
+
+# Check python code style
+# || true is appended to force make to ignore the exit code from pycodestyle
+pystyle:
+	pycodestyle --max-line-length=100 --ignore E129,E126,E121,E111,E114,W504 *.py | grep -v "indentation is not a multiple of four" || true
+
+# Run the python delinter (make sure pyflakes is for python version 3)
+pydelint:
+	pyflakes *.py
+
+
 ### Cleanup scripts
 
 clean:
