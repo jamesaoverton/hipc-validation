@@ -1,29 +1,81 @@
-.PHONY: validate batch_validate clean cleanall test
+# Makefile for HIPC Validation
+# Michael E. Cuffaro <consulting@michaelcuffaro.com>
+#
+# WARN: This file contains significant whitespace, i.e. tabs!
+# Ensure that your text editor shows you those characters.
+#
+# Requirements:
+#
+# - GNU Make <https://www.gnu.org/software/make/>
+# - Python 3
+# - pytest <https://pytest.org> for running automated tests
 
-validate: validate.py nodes.dmp names.dmp sample.xlsx
-	$^ result.xlsx
+### GNU Make Configuration
+#
+# These are standard options to make Make sane:
+# <http://clarkgrubb.com/makefile-style-guide#toc2>
 
-batch_validate: hai.csv neutAbTiter.csv
+MAKEFLAGS += --warn-undefined-variables
+SHELL := bash
+.SHELLFLAGS := -eu -o pipefail -c
+.DEFAULT_GOAL := all
+.DELETE_ON_ERROR:
+.SUFFIXES:
+.SECONDARY:
 
-hai.csv: batch_validate.py nodes.dmp names.dmp
-	$< --clobber --nodes nodes.dmp --names names.dmp \
-	--hai SDY113 SDY144 SDY180 SDY202 SDY212 SDY312 SDY387 SDY404 SDY514 SDY515 SDY519 SDY67
 
-neutAbTiter.csv: batch_validate.py nodes.dmp names.dmp
-	$< --clobber --nodes nodes.dmp --names names.dmp \
-	--neutAbTiter SDY144 SDY180 SDY387 SDY522 SDY67
+### Set Up
 
-%.dmp: taxdmp.zip
-	unzip -u $<
+build:
+	mkdir $@
 
-taxdmp.zip:
+cache:
+	mkdir $@
+
+# NCBI data
+cache/%.dmp: cache/taxdmp.zip | cache
+	unzip -u $< -d $|
+
+# .zip file from which the NCBI .dmp files are extracted
+cache/taxdmp.zip: | cache
 	curl -k -L -o $@ "ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip"
 
-clean:
-	rm -f taxdmp.zip *.dmp gc.prt readme.txt *.csv
+# File containing general info on various HIPC studies:
+build/HIPC_Studies.tsv: | build
+	curl -k -L -o $@ "https://www.immport.org/documentation/data/hipc/HIPC_Studies.tsv"
 
-cleanall: clean
-	rm -Rf static
+
+### Validation scripts
+
+build/result.xlsx: validate.py cache/nodes.dmp cache/names.dmp sample.xlsx
+	$^ $@
+
+build/hai.tsv: batch_validate.py build/HIPC_Studies.tsv cache/nodes.dmp cache/names.dmp | build cache
+	$^ $| --hai
+
+build/neutAbTiter.tsv: batch_validate.py build/HIPC_Studies.tsv cache/nodes.dmp cache/names.dmp | build cache
+	$^ $| --neutAbTiter
+
+
+### Delinting and style
+
+# Check python code style
+# || true is appended to force make to ignore the exit code from pycodestyle
+pystyle:
+	pycodestyle --max-line-length=100 --ignore E129,E126,E121,E111,E114,W504 *.py | grep -v "indentation is not a multiple of four" || true
+
+# Run the python delinter (make sure pyflakes is for python version 3)
+pydelint:
+	pyflakes *.py
+
+
+### Cleanup scripts
+
+clean:
+	rm -f build/*.tsv
+
+cleancache:
+	rm -rf cache
 
 test:
 	pytest *.py
