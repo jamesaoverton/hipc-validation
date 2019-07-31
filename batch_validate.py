@@ -122,9 +122,9 @@ def validate(name, parents, taxid_names, scientific_names, synonyms, lowercase_n
     # 4. 'name' is a substring of exactly one scientific name:
     else:
       matches = []
-      for scientific_name in scientific_names.keys():
-        if name in scientific_name:
-          matches.append(scientific_name)
+      for key in scientific_names.keys():
+        if name in key:
+          matches.append(key)
           if len(matches) > 1:
             break
       if len(matches) == 1:
